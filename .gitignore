@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+out/
+coverage/
+
+# Environment files: never commit real secrets (only .env.example is tracked)
+.env
+.env.*
+!.env.example
+
+# Logs and OS/editor noise
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Private planning workspace and the challenge brief (not part of the submission)
+planning/
+project.pdf

@@ -1,0 +1,10 @@
+# Store and check out text files with LF endings, so shell scripts, Dockerfiles and
+# configs written on Windows behave the same inside Linux containers.
+* text=auto eol=lf
+
+# Binary files are never converted
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary
