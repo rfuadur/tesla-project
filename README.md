@@ -13,3 +13,10 @@ and passengers **Nusrat**, **Rafiq** and **Shirin**.
 
 ## Planned stack
 Next.js 16 (web) · Node.js 24 + Express 5 (API) · PostgreSQL 17 · Docker Compose
+
+## Design documents
+- [Architecture](docs/architecture.md): containers, request flow, backend layers
+- [Domain](docs/domain.md): ride and pool lifecycles, matching rule, fare model, the last-seat race
+- [Database](docs/database.md): ERD, why each table exists, constraints and indexes
+- [API](docs/api.md): endpoints, auth, error model
+- [Decisions](docs/decisions.md): assumptions, technology choices, trade-offs
