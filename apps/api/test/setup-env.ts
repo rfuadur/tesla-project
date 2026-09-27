@@ -1,8 +1,10 @@
-import { existsSync } from 'node:fs';
+import { loadRootEnv, testDatabaseUrl } from './helpers/env.js';
 
-// Tests read the same root .env as `npm run dev`; in CI the variables come from the environment instead.
-const rootEnv = new URL('../../../.env', import.meta.url);
-if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
+// Runs in every test worker before the test files load the app's config.
+loadRootEnv();
+
+// Point the app at the test database (tesla_pool_test), never at your dev data.
+process.env.DATABASE_URL = testDatabaseUrl();
 
 // Keep test output readable. Run with TEST_LOG_LEVEL=debug to see the API's logs while debugging.
 process.env.LOG_LEVEL = process.env.TEST_LOG_LEVEL ?? 'silent';
