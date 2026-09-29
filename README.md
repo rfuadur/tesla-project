@@ -14,6 +14,30 @@ and passengers **Nusrat**, **Rafiq** and **Shirin**.
 ## Planned stack
 Next.js 16 (web) · Node.js 24 + Express 5 (API) · PostgreSQL 17 · Docker Compose
 
+## Run it with Docker
+Prerequisite: Docker Desktop (or Docker Engine with Compose v2).
+
+```bash
+cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
+docker compose up --build
+```
+
+Compose starts the services in order: **db** (PostgreSQL, waits until healthy) → **migrate** (applies the SQL migrations
+and seeds the story cast, then exits) → **api** (starts only if migrate succeeded). Check it with
+<http://localhost:4000/health>, which should answer `{"status":"ok","db":"ok"}`.
+
+Stop with `docker compose down`, or `docker compose down -v` to also delete the database volume and start fresh.
+
+### Demo accounts
+All seeded accounts use the password **`banani0841`** (08:41 at Banani, when the story starts).
+
+| Who | Email | Role |
+|---|---|---|
+| Jashim, driving Bullet (3 seats) | `jashim@teslapool.test` | Driver |
+| Nusrat | `nusrat@teslapool.test` | Passenger |
+| Rafiq | `rafiq@teslapool.test` | Passenger |
+| Shirin | `shirin@teslapool.test` | Passenger |
+
 ## Design documents
 - [Architecture](docs/architecture.md): containers, request flow, backend layers
 - [Domain](docs/domain.md): ride and pool lifecycles, matching rule, fare model, the last-seat race
