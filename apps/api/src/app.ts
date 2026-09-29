@@ -3,6 +3,7 @@ import express from 'express';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { referenceRouter } from './modules/reference/reference.routes.js';
 import { healthRouter } from './routes/health.js';
 
 /**
@@ -21,6 +22,7 @@ export function buildApp() {
 
   const api = express.Router(); // 5. feature routers
   api.use('/auth', authRouter);
+  api.use(referenceRouter); // /zones, /fares/estimate
   app.use('/api/v1', api);
 
   app.use(notFoundHandler); // 6. nothing matched → 404 in our error shape

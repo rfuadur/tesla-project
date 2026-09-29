@@ -15,26 +15,15 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { POOL_STATUSES, RIDE_STATUSES } from '../domain/lifecycle.js';
 
 // The database schema: every table, constraint and index from docs/database.md.
 // `drizzle-kit generate` turns this file into the SQL migrations in ../../drizzle.
 
 export const userRole = pgEnum('user_role', ['PASSENGER', 'DRIVER']);
-export const rideStatus = pgEnum('ride_status', [
-  'REQUESTED',
-  'MATCHED',
-  'DRIVER_ARRIVED',
-  'STARTED',
-  'COMPLETED',
-  'CANCELLED',
-]);
-export const poolStatus = pgEnum('pool_status', [
-  'ACCEPTED',
-  'DRIVER_ARRIVED',
-  'STARTED',
-  'COMPLETED',
-  'CANCELLED',
-]);
+// Status values come from the domain's state machines, so they are defined in one place only.
+export const rideStatus = pgEnum('ride_status', RIDE_STATUSES);
+export const poolStatus = pgEnum('pool_status', POOL_STATUSES);
 export const paymentMethod = pgEnum('payment_method', ['CASH', 'TESLAPAY']);
 
 // All timestamps are stored with time zone (UTC inside Postgres).
