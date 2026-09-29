@@ -9,6 +9,8 @@ const EnvSchema = z.object({
   JWT_SECRET: z.string().min(32, 'must be at least 32 characters'),
   COOKIE_SECURE: z.stringbool().default(false),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  // Sign-in / sign-up attempts allowed per IP address per 15 minutes.
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
