@@ -1,0 +1,8 @@
+# Keep the build context small and never bake secrets or local artifacts into the image.
+node_modules
+dist
+coverage
+test
+.env
+.env.*
+*.log

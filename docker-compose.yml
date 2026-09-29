@@ -1,5 +1,20 @@
 name: tesla-pool
 
+# `docker compose up --build` starts everything in order:
+#   db (healthy) → migrate (applies migrations + seeds the cast, then exits) → api (healthy)
+
+# Shared settings for the two services built from apps/api.
+x-api-image: &api-image
+  build: ./apps/api
+  image: tesla-pool-api:local
+
+x-api-env: &api-env
+  NODE_ENV: production
+  # Inside the compose network the database is reached by its service name, "db".
+  DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
 services:
   db:
     image: postgres:17-alpine
@@ -17,6 +32,29 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  migrate:
+    <<: *api-image
+    command: ["sh", "-c", "node dist/scripts/migrate.js && node dist/scripts/seed.js"]
+    environment:
+      <<: *api-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *api-image
+    environment:
+      <<: *api-env
+      API_PORT: "4000"
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   pgdata:

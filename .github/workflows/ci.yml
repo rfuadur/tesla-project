@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  api:
+    name: API · lint, typecheck, tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    # A real PostgreSQL for the tests: constraints and locks can't be proven against a mock.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tesla
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: tesla_pool
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tesla -d tesla_pool"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://tesla:ci-only-password@localhost:5432/tesla_pool
+      JWT_SECRET: ci-only-secret-at-least-32-characters-long
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm test
+
+  compose:
+    name: Docker · compose up from scratch
+    runs-on: ubuntu-latest
+    # Exactly what an evaluator does on a fresh clone.
+    steps:
+      - uses: actions/checkout@v7
+      - run: cp .env.example .env
+      - run: docker compose up --build --wait
+      - run: curl --fail --silent --show-error http://localhost:4000/health
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down -v
