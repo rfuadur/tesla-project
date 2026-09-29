@@ -1,14 +1,19 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
+import { pgError } from '../../src/db/errors.js';
 import { users, vehicles } from '../../src/db/schema.js';
-import { CAST, seed } from '../../src/db/seed.js';
+import { CAST, seedCast, seedZones } from '../../src/db/seed.js';
 
-/** Empties every table and re-seeds the zones and the story cast, so each test starts from the same world. */
-export async function resetDatabase(): Promise<void> {
+/**
+ * Empties every table and re-seeds the zones and (unless `withCast: false`) the story cast,
+ * so each test starts from the same world.
+ */
+export async function resetDatabase({ withCast = true } = {}): Promise<void> {
   await db.execute(
     sql`TRUNCATE ride_events, payments, ride_requests, pools, vehicles, users, zones RESTART IDENTITY CASCADE`,
   );
-  await seed(db);
+  await seedZones(db);
+  if (withCast) await seedCast(db);
 }
 
 /** The seeded cast, looked up by email. */
@@ -33,17 +38,14 @@ export async function loadCast() {
 
 export type Cast = Awaited<ReturnType<typeof loadCast>>;
 
-/**
- * Awaits a query that must fail and returns Postgres's error (code + constraint name).
- * Drizzle wraps the driver error, so the original lives in `cause`.
- */
+/** Awaits a query that must fail and returns Postgres's error (code + constraint name). */
 export async function expectDbError(
   query: Promise<unknown>,
 ): Promise<{ code?: string; constraint?: string }> {
   try {
     await query;
   } catch (err) {
-    return ((err as { cause?: unknown }).cause ?? err) as { code?: string; constraint?: string };
+    return pgError(err);
   }
   throw new Error('expected the database to reject this, but it was accepted');
 }

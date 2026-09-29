@@ -19,6 +19,11 @@ export const CAST = {
  * (existing zones are updated in place, existing people and Bullet are left alone).
  */
 export async function seed(db: Db): Promise<void> {
+  await seedZones(db);
+  await seedCast(db);
+}
+
+export async function seedZones(db: Db): Promise<void> {
   await db
     .insert(zones)
     .values([...ZONES])
@@ -26,7 +31,9 @@ export async function seed(db: Db): Promise<void> {
       target: zones.code,
       set: { name: sql`excluded.name`, lat: sql`excluded.lat`, lng: sql`excluded.lng` },
     });
+}
 
+export async function seedCast(db: Db): Promise<void> {
   const passwordHash = await hashPassword(DEMO_PASSWORD);
   await db
     .insert(users)
