@@ -1,0 +1,52 @@
+### Dhaka Tesla Pool: the story as runnable HTTP calls.
+### Open this file in VS Code with the "REST Client" extension and click "Send Request" above each call.
+### Start the API first: `docker compose up -d db` (repo root), then `npm run dev` (apps/api).
+### Cookies are remembered between calls, so signing in as someone makes the next calls theirs.
+
+@api = http://localhost:4000/api/v1
+
+### Is everything up?
+GET http://localhost:4000/health
+
+### The zones, and what Nusrat's trip will cost before she books (৳100 solo, ৳75 pooled)
+GET {{api}}/fares/estimate?pickup=BANANI&dropoff=MOHAKHALI
+
+### 08:41, Banani Road 11. Nusrat signs in...
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "nusrat@teslapool.test", "password": "banani0841" }
+
+### ...and books Banani → Mohakhali
+# @name nusratBooks
+POST {{api}}/rides
+Content-Type: application/json
+
+{ "pickupZone": "BANANI", "dropoffZone": "MOHAKHALI", "seats": 1 }
+
+### Her ride, with its timeline
+GET {{api}}/rides/{{nusratBooks.response.body.ride.id}}
+
+### Her active rides
+GET {{api}}/rides?scope=active
+
+### Rafiq signs in (his cookie replaces Nusrat's)...
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "rafiq@teslapool.test", "password": "banani0841" }
+
+### ...and tries to look at Nusrat's ride: 404, as if it didn't exist
+GET {{api}}/rides/{{nusratBooks.response.body.ride.id}}
+
+### Back to Nusrat, who cancels (she found a CNG)
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "nusrat@teslapool.test", "password": "banani0841" }
+
+###
+POST {{api}}/rides/{{nusratBooks.response.body.ride.id}}/cancel
+Content-Type: application/json
+
+{ "reason": "Found a CNG instead" }

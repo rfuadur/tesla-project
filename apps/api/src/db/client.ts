@@ -6,3 +6,9 @@ import * as schema from './schema.js';
 export const db = drizzle({ client: pool, schema });
 
 export type Db = typeof db;
+
+/** An open transaction: the same query API as `db`, but every query runs inside that one transaction. */
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+/** Anything queries can run on: the pool itself, or an open transaction. */
+export type DbOrTx = Db | Tx;
