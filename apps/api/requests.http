@@ -1,52 +1,95 @@
 ### Dhaka Tesla Pool: the story as runnable HTTP calls.
-### Open this file in VS Code with the "REST Client" extension and click "Send Request" above each call.
+### Open this file in VS Code with the "REST Client" extension and click "Send Request" above each call, in order.
 ### Start the API first: `docker compose up -d db` (repo root), then `npm run dev` (apps/api).
 ### Cookies are remembered between calls, so signing in as someone makes the next calls theirs.
+### To replay from scratch: `docker compose down -v`, `docker compose up -d db`, `npm run db:migrate`, `npm run db:seed`.
 
 @api = http://localhost:4000/api/v1
+@password = banani0841
 
 ### Is everything up?
 GET http://localhost:4000/health
 
-### The zones, and what Nusrat's trip will cost before she books (৳100 solo, ৳75 pooled)
+### What Nusrat's trip will cost before she books (৳100 solo, ৳75 pooled)
 GET {{api}}/fares/estimate?pickup=BANANI&dropoff=MOHAKHALI
 
-### 08:41, Banani Road 11. Nusrat signs in...
+### ── 08:41, Banani Road 11. Jashim goes online with Bullet ──
 POST {{api}}/auth/login
 Content-Type: application/json
 
-{ "email": "nusrat@teslapool.test", "password": "banani0841" }
+{ "email": "jashim@teslapool.test", "password": "{{password}}" }
 
-### ...and books Banani → Mohakhali
+###
+PATCH {{api}}/driver/availability
+Content-Type: application/json
+
+{ "online": true, "zone": "BANANI" }
+
+### ── Nusrat books Banani → Mohakhali ──
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "nusrat@teslapool.test", "password": "{{password}}" }
+
+###
 # @name nusratBooks
 POST {{api}}/rides
 Content-Type: application/json
 
 { "pickupZone": "BANANI", "dropoffZone": "MOHAKHALI", "seats": 1 }
 
-### Her ride, with its timeline
-GET {{api}}/rides/{{nusratBooks.response.body.ride.id}}
-
-### Her active rides
-GET {{api}}/rides?scope=active
-
-### Rafiq signs in (his cookie replaces Nusrat's)...
+### ── Rafiq books Banani → Gulshan 1, two minutes later ──
 POST {{api}}/auth/login
 Content-Type: application/json
 
-{ "email": "rafiq@teslapool.test", "password": "banani0841" }
-
-### ...and tries to look at Nusrat's ride: 404, as if it didn't exist
-GET {{api}}/rides/{{nusratBooks.response.body.ride.id}}
-
-### Back to Nusrat, who cancels (she found a CNG)
-POST {{api}}/auth/login
-Content-Type: application/json
-
-{ "email": "nusrat@teslapool.test", "password": "banani0841" }
+{ "email": "rafiq@teslapool.test", "password": "{{password}}" }
 
 ###
-POST {{api}}/rides/{{nusratBooks.response.body.ride.id}}/cancel
+# @name rafiqBooks
+POST {{api}}/rides
 Content-Type: application/json
 
-{ "reason": "Found a CNG instead" }
+{ "pickupZone": "BANANI", "dropoffZone": "GULSHAN_1", "seats": 1 }
+
+### Rafiq tries to look at Nusrat's ride: 404, as if it didn't exist
+GET {{api}}/rides/{{nusratBooks.response.body.ride.id}}
+
+### ── Back to Jashim: who is waiting at Banani? ──
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "jashim@teslapool.test", "password": "{{password}}" }
+
+###
+GET {{api}}/driver/requests
+
+### Accept Nusrat: this creates Bullet's pool
+# @name acceptNusrat
+POST {{api}}/driver/requests/{{nusratBooks.response.body.ride.id}}/accept
+
+### Accept Rafiq into the same pool (drop-offs 2 km apart)
+POST {{api}}/driver/requests/{{rafiqBooks.response.body.ride.id}}/accept
+
+### Arrive at Banani, then start: fares lock at ৳75 and ৳90
+POST {{api}}/pools/{{acceptNusrat.response.body.pool.id}}/arrive
+
+###
+POST {{api}}/pools/{{acceptNusrat.response.body.pool.id}}/start
+
+### Drop Nusrat at Mohakhali, then Rafiq at Gulshan 1
+POST {{api}}/pools/{{acceptNusrat.response.body.pool.id}}/rides/{{nusratBooks.response.body.ride.id}}/drop-off
+
+###
+POST {{api}}/pools/{{acceptNusrat.response.body.pool.id}}/rides/{{rafiqBooks.response.body.ride.id}}/drop-off
+
+### Jashim's finished trips (collected ৳165)
+GET {{api}}/driver/pools?scope=history
+
+### ── Nusrat looks back: what exactly happened? ──
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "nusrat@teslapool.test", "password": "{{password}}" }
+
+###
+GET {{api}}/rides/{{nusratBooks.response.body.ride.id}}
