@@ -3,6 +3,8 @@ import express from 'express';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { driverRouter } from './modules/driver/driver.routes.js';
+import { poolsRouter } from './modules/pools/pools.routes.js';
 import { referenceRouter } from './modules/reference/reference.routes.js';
 import { ridesRouter } from './modules/rides/rides.routes.js';
 import { healthRouter } from './routes/health.js';
@@ -25,6 +27,8 @@ export function buildApp() {
   api.use('/auth', authRouter);
   api.use(referenceRouter); // /zones, /fares/estimate
   api.use('/rides', ridesRouter);
+  api.use('/driver', driverRouter);
+  api.use('/pools', poolsRouter);
   app.use('/api/v1', api);
 
   app.use(notFoundHandler); // 6. nothing matched → 404 in our error shape
