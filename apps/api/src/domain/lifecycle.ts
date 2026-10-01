@@ -70,6 +70,13 @@ export const ACTIVE_RIDE_STATUSES = [
   'STARTED',
 ] as const satisfies readonly RideStatus[];
 
+/** A Tesla's trip is "active" until it is completed or cancelled (matches the one-active-pool index). */
+export const ACTIVE_POOL_STATUSES = [
+  'ACCEPTED',
+  'DRIVER_ARRIVED',
+  'STARTED',
+] as const satisfies readonly PoolStatus[];
+
 /** New riders can join a pool until it starts (assumption A7). */
 export const JOINABLE_POOL_STATUSES = [
   'ACCEPTED',
