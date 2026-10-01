@@ -3,7 +3,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { db, type DbOrTx } from '../../db/client.js';
 import { isUniqueViolation } from '../../db/errors.js';
 import { pools, rideRequests, users, vehicles } from '../../db/schema.js';
-import { type FareRuleVersion, quoteFare } from '../../domain/fare.js';
+import { quoteFare } from '../../domain/fare.js';
 import { distanceKm } from '../../domain/geo.js';
 import {
   ACTIVE_RIDE_STATUSES,
@@ -12,6 +12,8 @@ import {
 } from '../../domain/lifecycle.js';
 import { conflict, notFound } from '../../lib/errors.js';
 import { recordEvent, rideTimeline } from '../events/events.service.js';
+import { lockPool, releaseSeats } from '../pools/pools.service.js';
+import { rideFare } from './ride-fare.js';
 import type { CreateRideInput } from './rides.schemas.js';
 
 const driver = alias(users, 'driver');
@@ -49,15 +51,6 @@ interface RideRow {
 
 /** The API's view of a ride. Money stays in paisa; the web app formats it as taka. */
 function toRideView({ ride, pool, vehicleName, driverName, coRiders }: RideRow) {
-  // Rides only ever store versions that exist in FARE_RULES.
-  const ruleVersion = ride.fareRuleVersion as FareRuleVersion;
-  const pooled = quoteFare({
-    distanceKm: ride.distanceKm,
-    seats: ride.seats,
-    shared: true,
-    ruleVersion,
-  });
-
   return {
     id: ride.id,
     status: ride.status,
@@ -66,13 +59,7 @@ function toRideView({ ride, pool, vehicleName, driverName, coRiders }: RideRow) 
     seats: ride.seats,
     paymentMethod: ride.paymentMethod,
     distanceKm: ride.distanceKm,
-    fare: {
-      ruleVersion,
-      estimatedPaisa: ride.estimatedFarePaisa, // solo price: the most this ride can cost
-      pooledPaisa: pooled.totalPaisa, // the price if the trip starts shared
-      discountPaisa: ride.poolDiscountPaisa, // decided when the trip starts
-      finalPaisa: ride.finalFarePaisa,
-    },
+    fare: rideFare(ride),
     pool: pool && {
       status: pool.status,
       vehicleName,
@@ -176,38 +163,52 @@ export async function requestRide(passengerId: string, input: CreateRideInput) {
   return getRide(passengerId, rideId);
 }
 
-/** Cancels the passenger's own ride, if the state machine still allows it (before the trip starts). */
+/**
+ * Cancels the passenger's own ride, if the state machine still allows it (before the trip starts).
+ * A matched ride also gives its seats back to the pool; a pool left empty is cancelled.
+ */
 export async function cancelRide(passengerId: string, rideId: string, reason?: string) {
-  await db.transaction(async (tx) => {
-    // FOR UPDATE locks this ride row until we commit, so nothing else can change it halfway through.
-    const [ride] = await tx
-      .select()
-      .from(rideRequests)
-      .where(and(eq(rideRequests.id, rideId), eq(rideRequests.passengerId, passengerId)))
-      .for('update');
-    if (!ride) throw notFound('Ride not found.');
+  const ownRide = and(eq(rideRequests.id, rideId), eq(rideRequests.passengerId, passengerId));
 
-    assertRideTransition(ride.status, 'CANCELLED'); // 409 once the trip has started or finished
+  // Returns false if the ride changed between our first look and our lock, so we try again.
+  const tryCancel = () =>
+    db.transaction(async (tx) => {
+      // Locks are always taken pool → ride (the order claimSeats uses), to avoid deadlocks. So first
+      // look, without locking, at which pool the ride is in…
+      const [seen] = await tx
+        .select({ poolId: rideRequests.poolId })
+        .from(rideRequests)
+        .where(ownRide);
+      if (!seen) throw notFound('Ride not found.');
 
-    if (ride.poolId) {
-      // A matched ride must also give its seats back to the pool. That arrives with pools (Phase 8).
-      throw new Error('cancelling a ride that is already in a pool is not implemented yet');
-    }
+      // …then lock that pool, then the ride itself.
+      const pool = seen.poolId ? await lockPool(tx, seen.poolId) : null;
+      const [ride] = await tx.select().from(rideRequests).where(ownRide).for('update');
+      if (!ride) throw notFound('Ride not found.');
+      if (ride.poolId !== seen.poolId) return false; // a driver matched it in between: start over
 
-    await tx
-      .update(rideRequests)
-      .set({ status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason ?? null })
-      .where(eq(rideRequests.id, ride.id));
+      assertRideTransition(ride.status, 'CANCELLED'); // 409 once the trip has started or finished
 
-    await recordEvent(tx, {
-      type: 'RIDE_CANCELLED',
-      rideRequestId: ride.id,
-      actorUserId: passengerId,
-      fromStatus: ride.status,
-      toStatus: 'CANCELLED',
-      details: reason ? { reason } : {},
+      await tx
+        .update(rideRequests)
+        .set({ status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason ?? null })
+        .where(eq(rideRequests.id, ride.id));
+      await recordEvent(tx, {
+        type: 'RIDE_CANCELLED',
+        rideRequestId: ride.id,
+        poolId: ride.poolId ?? undefined,
+        actorUserId: passengerId,
+        fromStatus: ride.status,
+        toStatus: 'CANCELLED',
+        details: { ...(reason && { reason }), ...(pool && { seatsReleased: ride.seats }) },
+      });
+
+      if (pool) await releaseSeats(tx, pool, ride);
+      return true;
     });
-  });
 
-  return getRide(passengerId, rideId);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (await tryCancel()) return getRide(passengerId, rideId);
+  }
+  throw conflict('TRY_AGAIN', 'Your ride changed while you were cancelling. Please try again.');
 }
