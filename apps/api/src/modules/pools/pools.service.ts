@@ -7,6 +7,7 @@ import {
   ACTIVE_POOL_STATUSES,
   assertPoolTransition,
   assertRideTransition,
+  JOINABLE_POOL_STATUSES,
   type RideStatus,
 } from '../../domain/lifecycle.js';
 import {
@@ -180,6 +181,54 @@ export async function claimSeats(
     });
   }
   return { ok: true };
+}
+
+/**
+ * Auto-join (assumption A5): right after a passenger books, try the open pools at their pickup zone,
+ * oldest first (the pool that has waited longest fills first, so it can leave sooner).
+ *
+ * The candidate list is only a first guess, read without locks. Each attempt goes through claimSeats(),
+ * which locks the pool and checks everything again, so a pool that filled up a moment ago is simply
+ * refused. Pools are always tried in the same order (accepted_at, id), so two bookings racing for the
+ * same pools lock them in the same order and can't deadlock.
+ *
+ * Returns the pool joined, or null: the ride keeps waiting for a driver.
+ */
+export async function autoJoin(
+  tx: Tx,
+  ride: Pick<RideRow, 'id' | 'pickupZoneCode' | 'seats'>,
+): Promise<string | null> {
+  const candidates = await tx
+    .select({ id: pools.id })
+    .from(pools)
+    .where(
+      and(
+        eq(pools.pickupZoneCode, ride.pickupZoneCode),
+        inArray(pools.status, [...JOINABLE_POOL_STATUSES]),
+        sql`${pools.capacity} - ${pools.seatsTaken} >= ${ride.seats}`,
+      ),
+    )
+    .orderBy(asc(pools.acceptedAt), asc(pools.id))
+    .limit(5);
+
+  for (const candidate of candidates) {
+    const verdict = await claimSeats(tx, {
+      poolId: candidate.id,
+      rideId: ride.id,
+      actorUserId: null, // the system matched it, not a person
+      via: 'AUTO_JOIN',
+    });
+    if (verdict.ok) return candidate.id;
+
+    // Kept in the passenger's timeline, so "why am I still waiting?" always has an answer.
+    await recordEvent(tx, {
+      type: 'SEAT_CLAIM_REJECTED',
+      rideRequestId: ride.id,
+      poolId: candidate.id,
+      details: { reason: verdict.reason },
+    });
+  }
+  return null;
 }
 
 /**
