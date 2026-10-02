@@ -150,7 +150,9 @@ A waiting ride **R** can join pool **P** only if all four hold:
 ### How rides find pools
 - **Auto-join when booking:** candidate pools are those with the same pickup, not started, and enough free seats, tried
   oldest first (the pool that has waited longest fills first and can leave sooner). The first one that passes the rule
-  while locked wins. If none does, the ride waits as `REQUESTED`.
+  while locked wins, and the ride's timeline shows it was matched by the system. If none does, the ride waits as
+  `REQUESTED`, and each refused attempt is recorded as `SEAT_CLAIM_REJECTED` with its reason (e.g. `DROPOFF_TOO_FAR`),
+  so "why am I still waiting?" always has an answer. Code: `autoJoin()` in `apps/api/src/modules/pools/pools.service.ts`.
 - **Driver accept:** Jashim sees waiting rides in his current zone. If he already has an open pool, he sees only rides that
   pass the rule and fit his free seats. Accepting creates his pool if he doesn't have one yet.
 - Both paths go through the same `claimSeats()` function, so capacity is checked in exactly one place.
@@ -258,7 +260,8 @@ sequenceDiagram
 **Five layers of defence**
 1. **One row lock per pool.** Any change to a pool's riders happens in a transaction that first runs
    `SELECT … FROM pools WHERE id = $1 FOR UPDATE`, then re-checks status, seats and the matching rule on fresh data.
-   Only that pool's row is locked; other pools are unaffected.
+   Only that pool's row is locked; other pools are unaffected. Code: `claimSeats()` in
+   `apps/api/src/modules/pools/pools.service.ts`, the one function every way of joining a pool goes through.
 2. **A database invariant.** `CHECK (seats_taken BETWEEN 0 AND capacity)` on `pools`. Even buggy code cannot commit an
    overbooked pool. Capacity is copied onto the pool row because a CHECK can only see its own row.
 3. **Uniqueness invariants:** one active ride per passenger and one active pool per Tesla (partial unique indexes), so double
@@ -282,8 +285,20 @@ real-time updates: we would partition matching by zone or geo-cell, give each pa
 there is no lock contention at all), use idempotency keys so a retried booking cannot create two rides, and publish events
 through an outbox table. The CHECK constraints stay as the final guard at any scale.
 
-**How it is tested**
-1. *Deterministic lock test:* connection A locks the pool; B's claim waits; A commits; B sees the pool full and is rejected.
-2. *Parallel test:* Nusrat and Shirin book at the same moment, repeated 50 times. Each time exactly one joins, and
-   seats taken = capacity = the sum of the active riders' seats.
-3. *Constraint test:* a raw `UPDATE pools SET seats_taken = 4` fails with a check violation.
+**How it is tested** (`apps/api/test/concurrency.test.ts`, `db-constraints.test.ts`)
+1. *Parallel race:* Bullet holds Rafiq and a colleague (2 of 3 seats); Nusrat and Shirin book at the same moment.
+   Repeated 20 times from a fresh database: every time exactly one is `MATCHED`, the other stays `REQUESTED`, and
+   seats taken = capacity = the sum of the riders' seats.
+2. *Deterministic lock test:* Nusrat's claim takes the pool lock and pauses before committing; Postgres itself
+   (`pg_stat_activity`) then reports Shirin's claim waiting on a lock. Once Nusrat commits, Shirin's claim continues and
+   is refused with `NOT_ENOUGH_SEATS`.
+3. *Constraint test:* a raw `UPDATE pools SET seats_taken = seats_taken + 1` on a full pool fails with a check violation.
+
+**What each layer is worth (verified by removing them)**
+| Removed | Result of the parallel race |
+|---|---|
+| nothing | exactly one gets the seat; the other waits politely as `REQUESTED` |
+| the row lock (`FOR UPDATE`) | both read "1 free seat"; the second write fails with `violates check constraint "pools_seats_within_capacity"`, so no overbooking, but that booking gets a 500 instead of a polite "waiting" |
+| the lock **and** the CHECK constraint | both are `MATCHED`: four people in a three-seat Tesla, with no error anywhere |
+
+The lock makes the race *behave well*; the constraint makes overbooking *impossible* even if the code is wrong.
