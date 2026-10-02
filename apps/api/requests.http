@@ -25,7 +25,7 @@ Content-Type: application/json
 
 { "online": true, "zone": "BANANI" }
 
-### ── Nusrat books Banani → Mohakhali ──
+### ── Nusrat books Banani → Mohakhali (no trip exists yet, so she waits) ──
 POST {{api}}/auth/login
 Content-Type: application/json
 
@@ -38,7 +38,20 @@ Content-Type: application/json
 
 { "pickupZone": "BANANI", "dropoffZone": "MOHAKHALI", "seats": 1 }
 
-### ── Rafiq books Banani → Gulshan 1, two minutes later ──
+### ── Jashim sees her waiting and accepts: this creates Bullet's pool ──
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "jashim@teslapool.test", "password": "{{password}}" }
+
+###
+GET {{api}}/driver/requests
+
+###
+# @name acceptNusrat
+POST {{api}}/driver/requests/{{nusratBooks.response.body.ride.id}}/accept
+
+### ── Two minutes later Rafiq books Banani → Gulshan 1: he joins Bullet instantly (auto-join) ──
 POST {{api}}/auth/login
 Content-Type: application/json
 
@@ -54,29 +67,35 @@ Content-Type: application/json
 ### Rafiq tries to look at Nusrat's ride: 404, as if it didn't exist
 GET {{api}}/rides/{{nusratBooks.response.body.ride.id}}
 
-### ── Back to Jashim: who is waiting at Banani? ──
+### ── 30 seconds later Shirin books Banani → Tejgaon: 4 km from Gulshan 1, so she waits ──
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "shirin@teslapool.test", "password": "{{password}}" }
+
+###
+# @name shirinBooks
+POST {{api}}/rides
+Content-Type: application/json
+
+{ "pickupZone": "BANANI", "dropoffZone": "TEJGAON", "seats": 1 }
+
+### Her timeline says why she wasn't matched (SEAT_CLAIM_REJECTED, DROPOFF_TOO_FAR)
+GET {{api}}/rides/{{shirinBooks.response.body.ride.id}}
+
+### ── Jashim: arrive, start (fares lock at ৳75 and ৳90), drop Nusrat, then Rafiq ──
 POST {{api}}/auth/login
 Content-Type: application/json
 
 { "email": "jashim@teslapool.test", "password": "{{password}}" }
 
 ###
-GET {{api}}/driver/requests
-
-### Accept Nusrat: this creates Bullet's pool
-# @name acceptNusrat
-POST {{api}}/driver/requests/{{nusratBooks.response.body.ride.id}}/accept
-
-### Accept Rafiq into the same pool (drop-offs 2 km apart)
-POST {{api}}/driver/requests/{{rafiqBooks.response.body.ride.id}}/accept
-
-### Arrive at Banani, then start: fares lock at ৳75 and ৳90
 POST {{api}}/pools/{{acceptNusrat.response.body.pool.id}}/arrive
 
 ###
 POST {{api}}/pools/{{acceptNusrat.response.body.pool.id}}/start
 
-### Drop Nusrat at Mohakhali, then Rafiq at Gulshan 1
+###
 POST {{api}}/pools/{{acceptNusrat.response.body.pool.id}}/rides/{{nusratBooks.response.body.ride.id}}/drop-off
 
 ###
