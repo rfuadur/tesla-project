@@ -12,7 +12,7 @@ import {
 } from '../../domain/lifecycle.js';
 import { conflict, notFound } from '../../lib/errors.js';
 import { recordEvent, rideTimeline } from '../events/events.service.js';
-import { lockPool, releaseSeats } from '../pools/pools.service.js';
+import { autoJoin, lockPool, releaseSeats } from '../pools/pools.service.js';
 import { rideFare } from './ride-fare.js';
 import type { CreateRideInput } from './rides.schemas.js';
 
@@ -115,7 +115,10 @@ export async function listRides(
   return rows.map(toRideView);
 }
 
-/** Books a ride: priced solo (the most it can cost), waiting for a Tesla. */
+/**
+ * Books a ride, priced solo (the most it can cost). If a compatible Tesla is already waiting at the
+ * pickup, the ride joins it straight away; otherwise it waits for a driver to accept it.
+ */
 export async function requestRide(passengerId: string, input: CreateRideInput) {
   const km = distanceKm(input.pickupZone, input.dropoffZone);
   const solo = quoteFare({ distanceKm: km, seats: input.seats, shared: false });
@@ -145,7 +148,9 @@ export async function requestRide(passengerId: string, input: CreateRideInput) {
         toStatus: 'REQUESTED',
         details: { seats: input.seats, distanceKm: km, estimatedFarePaisa: solo.totalPaisa },
       });
-      // Phase 9: try to join a compatible open pool right here, inside the same transaction.
+      // "The app has to figure out, in about a second, whether these two can share": try to join a
+      // compatible open pool right now, inside the same transaction as the booking.
+      await autoJoin(tx, { id: ride.id, pickupZoneCode: input.pickupZone, seats: input.seats });
       return ride.id;
     });
   } catch (err) {

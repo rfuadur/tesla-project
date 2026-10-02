@@ -110,10 +110,12 @@ describe('relevant requests (GET /driver/requests)', () => {
     ]);
   });
 
-  it('once Nusrat is aboard, shows only riders who fit with her', async () => {
-    await bulletWithNusrat();
+  it('once Nusrat is aboard, shows only waiting riders who fit with her', async () => {
+    await goOnline();
+    // Rafiq and Shirin book before Bullet has a pool, so there's nothing to auto-join yet: they wait.
     await book(rafiq, 'GULSHAN_1'); // 2 km from Mohakhali: fits
     await book(shirin, 'DHANMONDI'); // 6 km from Mohakhali: doesn't
+    await accept(await book(nusrat, 'MOHAKHALI'));
 
     const res = await jashim.get('/api/v1/driver/requests');
 
@@ -146,9 +148,11 @@ describe('accepting a ride (POST /driver/requests/:rideId/accept)', () => {
     expect(ride.timeline.at(-1)).toMatchObject({ type: 'RIDE_MATCHED', by: 'DRIVER' });
   });
 
-  it('adds Rafiq to the same pool; Nusrat only learns that one other person is sharing', async () => {
-    const { nusratRide } = await bulletWithNusrat();
-    const rafiqRide = await book(rafiq, 'GULSHAN_1');
+  it('accepts Rafiq (already waiting) into the same pool; Nusrat only learns one other is sharing', async () => {
+    await goOnline();
+    const rafiqRide = await book(rafiq, 'GULSHAN_1'); // waits: no pool to join yet
+    const nusratRide = await book(nusrat, 'MOHAKHALI');
+    await accept(nusratRide);
 
     const res = await accept(rafiqRide);
 
@@ -161,8 +165,8 @@ describe('accepting a ride (POST /driver/requests/:rideId/accept)', () => {
   it('never lets Bullet carry more than its 3 seats (409 POOL_FULL)', async () => {
     await goOnline();
     await accept(await book(rafiq, 'GULSHAN_1', { seats: 2 })); // Rafiq and a colleague
-    await accept(await book(nusrat, 'MOHAKHALI')); // the last seat
-    const shirinRide = await book(shirin, 'MOHAKHALI');
+    await book(nusrat, 'MOHAKHALI'); // auto-joins: the last seat
+    const shirinRide = await book(shirin, 'MOHAKHALI'); // auto-join refused: Bullet is full
 
     const res = await accept(shirinRide);
 
@@ -228,8 +232,8 @@ describe('accepting a ride (POST /driver/requests/:rideId/accept)', () => {
 describe('the trip: arrive → start → drop-off', () => {
   it('runs the story: Nusrat pays ৳75, Rafiq ৳90, Jashim collects ৳165', async () => {
     const { poolId, nusratRide } = await bulletWithNusrat();
-    const rafiqRide = await book(rafiq, 'GULSHAN_1');
-    await accept(rafiqRide);
+    const rafiqRide = await book(rafiq, 'GULSHAN_1'); // two minutes later: auto-joins Bullet
+    expect((await rideOf(rafiq, rafiqRide)).status).toBe('MATCHED');
 
     const arrived = await poolStep(poolId, 'arrive');
     expect(arrived.body.pool.status).toBe('DRIVER_ARRIVED');
@@ -271,12 +275,11 @@ describe('the trip: arrive → start → drop-off', () => {
     });
   });
 
-  it('boards a rider who joins after Jashim has arrived straight away', async () => {
+  it('boards a rider who books after Jashim has arrived straight away', async () => {
     const { poolId } = await bulletWithNusrat();
     await poolStep(poolId, 'arrive');
-    const rafiqRide = await book(rafiq, 'GULSHAN_1');
 
-    await accept(rafiqRide);
+    const rafiqRide = await book(rafiq, 'GULSHAN_1'); // auto-joins a Tesla already at the curb
 
     expect((await rideOf(rafiq, rafiqRide)).status).toBe('DRIVER_ARRIVED');
   });
@@ -316,8 +319,7 @@ describe('the trip: arrive → start → drop-off', () => {
 describe('cancelling a matched ride gives the seats back', () => {
   it('Rafiq cancels after being matched: his seat returns and Nusrat rides on', async () => {
     const { nusratRide } = await bulletWithNusrat();
-    const rafiqRide = await book(rafiq, 'GULSHAN_1');
-    await accept(rafiqRide);
+    const rafiqRide = await book(rafiq, 'GULSHAN_1'); // auto-joins
 
     const res = await rafiq.post(`/api/v1/rides/${rafiqRide}/cancel`);
 
