@@ -22,11 +22,23 @@ cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
 docker compose up --build
 ```
 
+Then open **<http://localhost:3000>** and sign in as one of the demo accounts below.
+
 Compose starts the services in order: **db** (PostgreSQL, waits until healthy) → **migrate** (applies the SQL migrations
-and seeds the story cast, then exits) → **api** (starts only if migrate succeeded). Check it with
-<http://localhost:4000/health>, which should answer `{"status":"ok","db":"ok"}`.
+and seeds the story cast, then exits) → **api** (starts only if migrate succeeded) → **web** (the Next.js app, once the
+API is healthy). The API's own health check is <http://localhost:4000/health>.
 
 Stop with `docker compose down`, or `docker compose down -v` to also delete the database volume and start fresh.
+
+## Run it for development
+Postgres in Docker, the two apps on your machine (they reload on every save):
+
+```bash
+docker compose up -d db                                   # PostgreSQL only
+cd apps/api && npm install && npm run db:migrate && npm run db:seed && npm run dev   # API on :4000
+cd apps/web && npm install && npm run dev                 # web app on :3000 (forwards /api/* to :4000)
+cd apps/api && npm test                                   # API tests (needs the db container)
+```
 
 ### Demo accounts
 All seeded accounts use the password **`banani0841`** (08:41 at Banani, when the story starts).
