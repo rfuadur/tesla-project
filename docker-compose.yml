@@ -1,7 +1,8 @@
 name: tesla-pool
 
 # `docker compose up --build` starts everything in order:
-#   db (healthy) → migrate (applies migrations + seeds the cast, then exits) → api (healthy)
+#   db (healthy) → migrate (applies migrations + seeds the cast, then exits) → api (healthy) → web
+# Then open http://localhost:3000
 
 # Shared settings for the two services built from apps/api.
 x-api-image: &api-image
@@ -54,6 +55,23 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        # Baked into the build: where the web server forwards /api/* (the api service, by name).
+        API_INTERNAL_URL: http://api:4000
+    image: tesla-pool-web:local
+    environment:
+      # Read at runtime by server-side session checks.
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

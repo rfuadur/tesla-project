@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+
+/* Brand colour: Bangladesh green, for a Dhaka app. Used as bg-brand-600, text-brand-700, … */
+@theme {
+  --color-brand-50: #e9f6f1;
+  --color-brand-100: #c9eadd;
+  --color-brand-500: #0b8a63;
+  --color-brand-600: #006a4e;
+  --color-brand-700: #00563f;
+}
+
+body {
+  @apply bg-stone-50 text-stone-900 antialiased;
+}
