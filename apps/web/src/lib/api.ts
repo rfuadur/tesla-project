@@ -1,4 +1,4 @@
-import type { CurrentUser, PublicUser } from './types';
+import type { CurrentUser, FareEstimate, PublicUser, Ride, RideDetail, Zone } from './types';
 
 // The browser's client for the Express API. Every call goes to /api/v1/… on THIS origin; Next.js
 // forwards it to the API (next.config.ts), so the HttpOnly session cookie travels along automatically.
@@ -67,7 +67,29 @@ export const api = {
     request<{ user: PublicUser }>('POST', '/auth/register', input),
   logout: () => request<void>('POST', '/auth/logout'),
   me: () => request<{ user: CurrentUser }>('GET', '/auth/me'),
+
+  zones: () => request<{ zones: Zone[] }>('GET', '/zones'),
+  estimate: (pickup: string, dropoff: string, seats: number) =>
+    request<{ estimate: FareEstimate }>(
+      'GET',
+      `/fares/estimate?${new URLSearchParams({ pickup, dropoff, seats: String(seats) })}`,
+    ),
+
+  bookRide: (input: { pickupZone: string; dropoffZone: string; seats: number }) =>
+    request<{ ride: RideDetail }>('POST', '/rides', input),
+  listRides: (scope: 'active' | 'history') =>
+    request<{ rides: Ride[] }>('GET', `/rides?scope=${scope}`),
+  getRide: (rideId: string) => request<{ ride: RideDetail }>('GET', `/rides/${rideId}`),
+  cancelRide: (rideId: string) =>
+    request<{ ride: RideDetail }>('POST', `/rides/${rideId}/cancel`, {}),
 };
+
+/**
+ * Worth trying again? Network failures and server errors (5xx) may pass on a retry; a 4xx answer
+ * ("not found", "not allowed", "invalid") will give the same result every time.
+ */
+export const isRetryable = (error: unknown) =>
+  !(error instanceof ApiError && error.status >= 400 && error.status < 500);
 
 /** A message fit to show a person, whatever went wrong. */
 export function messageOf(error: unknown): string {

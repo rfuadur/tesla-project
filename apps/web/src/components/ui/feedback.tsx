@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { isRetryable, messageOf } from '@/lib/api';
 
 // The three states every screen needs besides "here is your data": loading, error and empty.
 
@@ -35,6 +36,13 @@ export function ErrorBanner({ message, onRetry }: { message: string; onRetry?: (
         </button>
       )}
     </div>
+  );
+}
+
+/** Data that failed to load: the server's message, with "Try again" only when a retry could help. */
+export function QueryError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  return (
+    <ErrorBanner message={messageOf(error)} onRetry={isRetryable(error) ? onRetry : undefined} />
   );
 }
 

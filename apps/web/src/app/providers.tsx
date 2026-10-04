@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
-import { ApiError } from '@/lib/api';
+import { isRetryable } from '@/lib/api';
 
 // TanStack Query keeps server data (rides, pools) cached in the browser, tracks loading and error
 // states, and re-fetches it when asked (polling, or after a change).
@@ -15,9 +15,7 @@ export function Providers({ children }: { children: ReactNode }) {
           queries: {
             staleTime: 2_000,
             // Retry network/server hiccups once, but never "you can't do that" answers (4xx).
-            retry: (failureCount, error) =>
-              !(error instanceof ApiError && error.status >= 400 && error.status < 500) &&
-              failureCount < 1,
+            retry: (failureCount, error) => isRetryable(error) && failureCount < 1,
           },
         },
       }),
