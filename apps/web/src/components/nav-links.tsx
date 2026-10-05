@@ -9,7 +9,10 @@ const LINKS: Record<Role, { href: string; label: string }[]> = {
     { href: '/passenger', label: 'Ride' },
     { href: '/passenger/history', label: 'History' },
   ],
-  DRIVER: [{ href: '/driver', label: 'Dashboard' }],
+  DRIVER: [
+    { href: '/driver', label: 'Dashboard' },
+    { href: '/driver/history', label: 'History' },
+  ],
 };
 
 export function NavLinks({ role }: { role: Role }) {
