@@ -5,7 +5,11 @@ import type { RideStatus } from './types';
 // Query keys in one place, so screens refresh each other's data reliably.
 // Invalidating ['rides'] refreshes the active ride, the history and every ride detail at once.
 export const keys = {
+  me: ['me'] as const,
   zones: ['zones'] as const,
+  driverPool: ['driver', 'pool'] as const,
+  driverRequests: ['driver', 'requests'] as const,
+  driverHistory: ['driver', 'history'] as const,
   activeRides: ['rides', 'active'] as const,
   rideHistory: ['rides', 'history'] as const,
   ride: (rideId: string) => ['rides', 'detail', rideId] as const,

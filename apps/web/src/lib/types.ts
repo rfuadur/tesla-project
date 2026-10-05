@@ -103,3 +103,43 @@ export interface TimelineEvent {
 export interface RideDetail extends Ride {
   timeline: TimelineEvent[];
 }
+
+/** A ride waiting in the driver's zone that would fit his Tesla right now. */
+export interface WaitingRequest {
+  rideId: string;
+  passengerName: string;
+  pickupZone: string;
+  dropoffZone: string;
+  seats: number;
+  distanceKm: number;
+  fare: RideFare;
+  requestedAt: string;
+}
+
+/** A rider as the driver sees them: name, drop-off, seats and fare. */
+export interface PoolRider {
+  rideId: string;
+  passengerName: string;
+  seats: number;
+  dropoffZone: string;
+  status: RideStatus;
+  fare: RideFare;
+}
+
+/** One trip of the driver's Tesla (a pool). */
+export interface DriverPool {
+  id: string;
+  status: PoolStatus;
+  pickupZone: string;
+  capacity: number;
+  seatsTaken: number;
+  seatsLeft: number;
+  riders: PoolRider[];
+  dropOffOrder: string[];
+  collectedPaisa: number;
+  acceptedAt: string;
+  arrivedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+}

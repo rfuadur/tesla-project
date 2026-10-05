@@ -1,4 +1,14 @@
-import type { CurrentUser, FareEstimate, PublicUser, Ride, RideDetail, Zone } from './types';
+import type {
+  CurrentUser,
+  DriverPool,
+  FareEstimate,
+  PublicUser,
+  Ride,
+  RideDetail,
+  Vehicle,
+  WaitingRequest,
+  Zone,
+} from './types';
 
 // The browser's client for the Express API. Every call goes to /api/v1/… on THIS origin; Next.js
 // forwards it to the API (next.config.ts), so the HttpOnly session cookie travels along automatically.
@@ -82,6 +92,22 @@ export const api = {
   getRide: (rideId: string) => request<{ ride: RideDetail }>('GET', `/rides/${rideId}`),
   cancelRide: (rideId: string) =>
     request<{ ride: RideDetail }>('POST', `/rides/${rideId}/cancel`, {}),
+
+  setAvailability: (online: boolean, zone?: string) =>
+    request<{ vehicle: Vehicle }>(
+      'PATCH',
+      '/driver/availability',
+      zone ? { online, zone } : { online },
+    ),
+  driverRequests: () => request<{ requests: WaitingRequest[] }>('GET', '/driver/requests'),
+  acceptRide: (rideId: string) =>
+    request<{ pool: DriverPool }>('POST', `/driver/requests/${rideId}/accept`),
+  driverPool: () => request<{ pool: DriverPool | null }>('GET', '/driver/pool'),
+  driverHistory: () => request<{ pools: DriverPool[] }>('GET', '/driver/pools?scope=history'),
+  markArrived: (poolId: string) => request<{ pool: DriverPool }>('POST', `/pools/${poolId}/arrive`),
+  startTrip: (poolId: string) => request<{ pool: DriverPool }>('POST', `/pools/${poolId}/start`),
+  dropOff: (poolId: string, rideId: string) =>
+    request<{ pool: DriverPool }>('POST', `/pools/${poolId}/rides/${rideId}/drop-off`),
 };
 
 /**
