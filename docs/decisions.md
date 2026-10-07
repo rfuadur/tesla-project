@@ -56,3 +56,7 @@ follows consistently.
 - **Row lock instead of SERIALIZABLE:** explicit and easy to reason about, at the cost of brief waits on one busy pool.
 - **Foreign key instead of a membership table:** one less table to keep in sync, at the cost of not tracking a ride that
   moves between pools (not possible in the MVP).
+- **Sign-in limit per account instead of per IP:** it works behind our proxy (where every request has the web server's
+  address) and can't be dodged by switching addresses, at the cost that anyone can pause sign-in for an account for
+  15 minutes by failing on purpose. At scale: per-IP limits at the edge, where the real client address is known, plus a
+  CAPTCHA after a few failures.

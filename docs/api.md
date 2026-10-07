@@ -15,6 +15,12 @@
 - `requireAuth` verifies the token; `requireRole` checks PASSENGER or DRIVER.
 - **Ownership is checked in the query itself** (`WHERE id = $rideId AND passenger_id = $me`). Someone else's ride answers
   **404**, exactly like a ride that doesn't exist, so ids can't be probed.
+- **Rate limits** (429 `RATE_LIMITED`): failed sign-ins are counted **per account**, 10 per 15 minutes, and a correct
+  password never counts; sign-ups are capped site-wide at 100 per hour. Not per IP address: behind the Next.js proxy every
+  request arrives from the web server's address, and `X-Forwarded-For` can't be trusted there (the proxy passes on
+  whatever the client sent).
+- **Security headers:** helmet on every API response (nosniff, HSTS, no framing, same-origin resource policy); the web app
+  sets its own on pages (no framing, nosniff, referrer and permissions policies). Bodies are limited to 10 kB.
 
 ## Endpoints
 
