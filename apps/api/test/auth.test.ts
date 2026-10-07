@@ -127,6 +127,34 @@ describe('sign-in (POST /auth/login) and GET /auth/me', () => {
   });
 });
 
+// The test limit is 3 failed sign-ins per account (test/setup-env.ts); the real default is 10.
+// Counters live in memory for the whole file, so later tests must not sign in as Shirin.
+describe('sign-in rate limit (per account, failed attempts only)', () => {
+  beforeEach(() => resetDatabase());
+
+  const signIn = (email: string, password: string) =>
+    request(app).post('/api/v1/auth/login').send({ email, password });
+
+  it('pauses Shirin’s account after 3 wrong passwords, even for the right one, and only hers', async () => {
+    for (const guess of ['banani0840', 'banani0842', 'gulshan0841']) {
+      expect((await signIn(CAST.shirin.email, guess)).status).toBe(401);
+    }
+
+    const paused = await signIn('SHIRIN@teslapool.test', DEMO_PASSWORD); // same account, any letter case
+    expect(paused.status).toBe(429);
+    expect(paused.body.error.code).toBe('RATE_LIMITED');
+
+    // Everyone reaches the API from the same (proxy) address, yet Rafiq is not affected.
+    expect((await signIn(CAST.rafiq.email, DEMO_PASSWORD)).status).toBe(200);
+  });
+
+  it('never counts correct passwords: Nusrat can sign in again and again', async () => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      expect((await signIn(CAST.nusrat.email, DEMO_PASSWORD)).status).toBe(200);
+    }
+  });
+});
+
 describe('sessions', () => {
   let cast: Cast;
 
