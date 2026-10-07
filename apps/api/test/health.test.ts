@@ -20,4 +20,13 @@ describe('GET /health', () => {
 
     expect(res.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it('sends basic security headers and does not name the framework', async () => {
+    const res = await request(app).get('/health');
+
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+    expect(res.headers['strict-transport-security']).toBeDefined();
+    expect(res.headers['x-powered-by']).toBeUndefined();
+  });
 });
