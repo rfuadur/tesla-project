@@ -2,8 +2,9 @@ name: CI
 
 on:
   pull_request:
+  # The long-lived branches: fixes and docs are committed straight to pre-release, and the release is cut from it.
   push:
-    branches: [master]
+    branches: [master, pre-release, 'release/**']
 
 jobs:
   api:

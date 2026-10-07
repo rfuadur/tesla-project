@@ -14,6 +14,23 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${apiOrigin}/api/:path*` }];
   },
+
+  // Basic browser protections on every page (the API sets its own on /api/*). A full script-limiting
+  // Content-Security-Policy needs per-request nonces for Next's inline scripts: a known limitation.
+  async headers() {
+    return [
+      {
+        source: '/((?!api/).*)',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" }, // no clickjacking
+          { key: 'X-Frame-Options', value: 'DENY' }, // the same, for older browsers
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
