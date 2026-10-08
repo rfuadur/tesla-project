@@ -66,12 +66,31 @@ No Redis, message queues, microservices or WebSockets. One PostgreSQL database a
 row-level locks, which is everything the MVP needs for consistency; polling every few seconds is enough for a handful of
 screens. Each of these would be added for a concrete reason at a larger scale, not to decorate the diagram.
 
-## Project structure (target)
+## Project structure
 ```
 apps/
-  api/   src/{config,db,domain,modules,middleware,lib}, drizzle/ (SQL migrations), test/{unit,integration}, Dockerfile
-  web/   src/{app,components,lib,hooks}, Dockerfile
-docs/    architecture · domain · database · api · decisions
+  api/                        Express API (its image also runs the one-shot migrate service)
+    src/
+      config/env.ts           every setting, validated with zod at startup
+      db/                     schema, client, migration runner, seed (the story cast)
+      domain/                 pure rules: fare, geo (distance table), lifecycle, matching
+      modules/                one folder per feature, routes + service:
+                              auth · rides · driver · pools · events · reference (zones, fare estimate)
+      middleware/             auth (requireAuth, requireRole), request logger, error handler
+      lib/                    errors, logger, password hashing, session token, ids
+      routes/health.ts        GET /health for Docker and hosting
+      scripts/                migrate and seed entry points
+    drizzle/                  SQL migrations (generated, reviewed, committed)
+    test/                     Vitest + Supertest against a real PostgreSQL; test/domain = pure unit tests
+    requests.http             the story as runnable HTTP requests
+  web/                        Next.js app
+    src/
+      app/                    routes: (auth)/login, (auth)/register, passenger/…, driver/…, healthz
+      components/             ride/ (passenger screens), driver/, ui/ (buttons, cards, fields)
+      lib/                    API client, query keys, server-side session, formatting, types
+      proxy.ts                sends signed-out visitors of /passenger and /driver to sign in
+docs/                         architecture · domain · database · api · decisions · scaling · screenshots/
+.github/workflows/ci.yml      API, web and docker compose checks on pull requests and the long-lived branches
 docker-compose.yml · .env.example · README.md
 ```
 
