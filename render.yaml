@@ -1,0 +1,32 @@
+# Render Blueprint: the API as a free Docker web service. Spec: https://render.com/docs/blueprint-spec
+# The database is on Neon and the web app on Vercel (README, "Deployment"). Nothing secret is stored here.
+services:
+  - type: web
+    name: tesla-pool-api
+    runtime: docker
+    plan: free
+    region: singapore # the closest Render region to Dhaka (it can't be changed later)
+    # Paths are from the repo root. Only changes to the API trigger a new deploy.
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    buildFilter:
+      paths:
+        - apps/api/**
+    # Free services have no pre-deploy step, so the container brings the database up to date itself before the
+    # API starts, like the `migrate` service in docker-compose.yml. Both steps are safe to repeat on every start.
+    dockerCommand: /bin/sh -c "node dist/scripts/migrate.js && node dist/scripts/seed.js && node dist/server.js"
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass # deploy a commit only after CI is green on it
+    envVars:
+      - key: DATABASE_URL
+        sync: false # the Neon connection string, typed in once when the Blueprint is created
+      - key: JWT_SECRET
+        generateValue: true # a random 256-bit secret made by Render, never in git
+      - key: COOKIE_SECURE
+        value: 'true' # the session cookie is only sent over HTTPS
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: PORT
+        value: '4000' # Render forwards traffic to $PORT (10000 by default); the API listens on API_PORT, 4000
