@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Dhaka Tesla Pool',
-  description: 'Share a seat. Split the fare. Survive Dhaka traffic.',
+  description: 'Share a seat. Split the fare. Survive Dhaka traffic together.',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
