@@ -14,7 +14,8 @@ services:
         - apps/api/**
     # Free services have no pre-deploy step, so the container brings the database up to date itself before the
     # API starts, like the `migrate` service in docker-compose.yml. Both steps are safe to repeat on every start.
-    dockerCommand: /bin/sh -c "node dist/scripts/migrate.js && node dist/scripts/seed.js && node dist/server.js"
+    # No quotes: Render hands everything after `-c` to the shell as one string, and quotes would be kept literally.
+    dockerCommand: /bin/sh -c node dist/scripts/migrate.js && node dist/scripts/seed.js && node dist/server.js
     healthCheckPath: /health
     autoDeployTrigger: checksPass # deploy a commit only after CI is green on it
     envVars:
